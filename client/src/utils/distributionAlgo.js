@@ -424,7 +424,26 @@ export const distributeStudents = (students, classCount, options = {}) => {
             // Optimize for exact evenness if possible, but the hard constraint above is what matters most.
             energy += (maxParam - minParam) * 5000;
 
-            // 3. Gender Imbalance
+            // 3. Previous Class Balance (Hard Constraint: Max Diff <= 1)
+            if (useClassBalance) {
+                // We need to check for EVERY source class, are they distributed evenly?
+                const sourceClasses = new Set();
+                normalizedStudents.forEach(s => {
+                    if (s.currentClass) sourceClasses.add(s.currentClass);
+                });
+
+                sourceClasses.forEach(srcClass => {
+                    const counts = classes.map(c => c.stats.sourceClassCounts[srcClass] || 0);
+                    const maxC = Math.max(...counts);
+                    const minC = Math.min(...counts);
+                    if (maxC - minC > 1) {
+                        energy += 5000000; // Large penalty
+                    }
+                    energy += (maxC - minC) * 2000;
+                });
+            }
+
+            // 4. Gender Imbalance
             if (useGender) {
                 const idealMale = totalMales / classCount;
                 const idealFemale = totalFemales / classCount;
@@ -437,17 +456,21 @@ export const distributeStudents = (students, classCount, options = {}) => {
                 energy += (maleDevSum + femaleDevSum) * 2000;
             }
 
-            // 4. Score Imbalance
+            // 5. Score Imbalance (Relaxed: Max Diff <= 5)
             if (useScore) {
-                let scoreDevSum = 0;
-                classes.forEach(cls => {
-                    const avg = cls.stats.total > 0 ? cls.stats.scoreSum / cls.stats.total : 0;
-                    scoreDevSum += Math.pow(avg - globalAvgScore, 2);
-                });
-                energy += scoreDevSum * 10;
+                const avgScores = classes.map(c => c.stats.total > 0 ? c.stats.scoreSum / c.stats.total : 0);
+                const maxScore = Math.max(...avgScores);
+                const minScore = Math.min(...avgScores);
+
+                // If difference is greater than 5, apply penalty
+                if (maxScore - minScore > 5) {
+                    energy += (maxScore - minScore - 5) * 10000; // Strong penalty for exceeding limit
+                }
+                // Small optimization to keep them somewhat close, but very low weight
+                energy += (maxScore - minScore) * 1;
             }
 
-            // 5. Attention Imbalance
+            // 6. Attention Imbalance
             let attentionDevSum = 0;
             const totalAttention = classes.reduce((sum, c) => sum + c.stats.attentionCount, 0);
             const idealAttention = totalAttention / classCount;
