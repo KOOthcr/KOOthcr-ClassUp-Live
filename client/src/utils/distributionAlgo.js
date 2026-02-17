@@ -382,6 +382,7 @@ export const distributeStudents = (students, classCount, options = {}) => {
             cls.stats.scoreSum = 0;
             cls.stats.attentionCount = 0;
             cls.stats.sourceClassCounts = {};
+            cls.stats.sourceClassGenderCounts = {}; // Track [SourceClass_Gender]
 
             cls.students.forEach(s => {
                 cls.stats.total++;
@@ -391,6 +392,10 @@ export const distributeStudents = (students, classCount, options = {}) => {
                 if (s.caution) cls.stats.attentionCount++;
                 const src = s.currentClass;
                 cls.stats.sourceClassCounts[src] = (cls.stats.sourceClassCounts[src] || 0) + 1;
+
+                // Track by gender as well
+                const srcGenderKey = `${src}_${s.gender}`;
+                cls.stats.sourceClassGenderCounts[srcGenderKey] = (cls.stats.sourceClassGenderCounts[srcGenderKey] || 0) + 1;
             });
         };
 
@@ -425,19 +430,23 @@ export const distributeStudents = (students, classCount, options = {}) => {
             energy += (maxParam - minParam) * 5000;
 
             // 3. Previous Class Balance (Hard Constraint: Max Diff <= 1)
+            // UPDATED: Now also checks Gender-Split Balance (e.g. 3-1 Male must be balanced)
             if (useClassBalance) {
-                // We need to check for EVERY source class, are they distributed evenly?
-                const sourceClasses = new Set();
+                // Collect all Source-Gender Keys
+                const sourceGenderKeys = new Set();
                 normalizedStudents.forEach(s => {
-                    if (s.currentClass) sourceClasses.add(s.currentClass);
+                    if (s.currentClass && s.gender) {
+                        sourceGenderKeys.add(`${s.currentClass}_${s.gender}`);
+                    }
                 });
 
-                sourceClasses.forEach(srcClass => {
-                    const counts = classes.map(c => c.stats.sourceClassCounts[srcClass] || 0);
+                sourceGenderKeys.forEach(key => {
+                    const counts = classes.map(c => c.stats.sourceClassGenderCounts[key] || 0);
                     const maxC = Math.max(...counts);
                     const minC = Math.min(...counts);
+
                     if (maxC - minC > 1) {
-                        energy += 5000000; // Large penalty
+                        energy += 5000000; // Large penalty (Hard Constraint)
                     }
                     energy += (maxC - minC) * 2000;
                 });
