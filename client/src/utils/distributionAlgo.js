@@ -85,7 +85,8 @@ export const distributeStudents = (students, classCount, options = {}) => {
             total: 0,
             scoreSum: 0,
             attentionCount: 0, // Track "Attention Needed" count
-            sourceClassCounts: {} // Track counts from each source class
+            sourceClassCounts: {}, // Track counts from each source class
+            sourceClassGenderCounts: {} // Track counts from each source class + gender
         }
     }));
 
@@ -366,6 +367,9 @@ export const distributeStudents = (students, classCount, options = {}) => {
 
                 const src = student.currentClass;
                 bestClass.stats.sourceClassCounts[src] = (bestClass.stats.sourceClassCounts[src] || 0) + 1;
+
+                const srcGenderKey = `${src}_${student.gender}`;
+                bestClass.stats.sourceClassGenderCounts[srcGenderKey] = (bestClass.stats.sourceClassGenderCounts[srcGenderKey] || 0) + 1;
             });
         }
     });
